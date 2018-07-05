@@ -1,12 +1,16 @@
+#include "cpu/pred/PAs.hh"
+
 #include "base/intmath.hh"
 #include "base/misc.hh"
 #include "base/trace.hh"
 #include "debug/Fetch.hh"
+#include "base/bitfield.hh"
+#include "base/intmath.hh"
 
 
 // Inicializacao
 PAs::PAs(const PAsParams *params)
-        : PAs(params),
+        : BPredUnit(params),
         localPredictorSize(params->localPredictorSize), // Para o "P"
         localCtrBits(params->localCtrBits),
         localHistoryTableSize(params->localHistoryTableSize),
@@ -20,8 +24,7 @@ PAs::PAs(const PAsParams *params)
         ceilLog2(params->globalPredictorSize) :
         ceilLog2(params->choicePredictorSize))
 {
-
-
+    
 }
 
 // Update: Atualiza a tabela de predicao
