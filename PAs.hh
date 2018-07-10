@@ -53,10 +53,10 @@
  * the branch's PC to choose between the two, destructive aliasing is reduced.
  */
 
-class BiModeBP : public BPredUnit
+class PAsBP : public BPredUnit
 {
   public:
-    BiModeBP(const BiModeBPParams *params);
+    PAsBP(const PAsBPParams *params);
     void uncondBranch(ThreadID tid, Addr pc, void * &bp_history);
     void squash(ThreadID tid, void *bp_history);
     bool lookup(ThreadID tid, Addr branch_addr, void * &bp_history);
