@@ -32,44 +32,35 @@
  * Implementation of a bi-mode branch predictor
  */
 
-#include "cpu/pred/bi_mode.hh"
+#include "cpu/pred/PAs.hh"
 
 #include "base/bitfield.hh"
 #include "base/intmath.hh"
 
 PAsBP::PAsBP(const PAsBPParams *params)
     : BPredUnit(params),
-      globalHistoryReg(params->numThreads, 0),
-      globalHistoryBits(ceilLog2(params->globalPredictorSize)),
-      choicePredictorSize(params->choicePredictorSize),
-      choiceCtrBits(params->choiceCtrBits),
-      globalPredictorSize(params->globalPredictorSize),
-      globalCtrBits(params->globalCtrBits)
-{
-    if (!isPowerOf2(choicePredictorSize))
-        fatal("Invalid choice predictor size.\n");
-    if (!isPowerOf2(globalPredictorSize))
-        fatal("Invalid global history predictor size.\n");
+      k(params->k),
+      a(params->a),
+      m(params->m),
+      bitsSPHT(params->tamPred),
+      bitsPBHT(params->tamHistBHT)
 
-    choiceCounters.resize(choicePredictorSize);
-    takenCounters.resize(globalPredictorSize);
-    notTakenCounters.resize(globalPredictorSize);
+    tamPBHT = pow(2,a);
+    numColSPHT = pow(2, m);
+    numLinSPHT = pow(2, k);
 
-    for (int i = 0; i < choicePredictorSize; ++i) {
-        choiceCounters[i].setBits(choiceCtrBits);
-    }
-    for (int i = 0; i < globalPredictorSize; ++i) {
-        takenCounters[i].setBits(globalCtrBits);
-        notTakenCounters[i].setBits(globalCtrBits);
+    PBHT.resize(tamPBHT);
+    for(int i=0; i < tamPBHT; ++i){
+        PBHT[i] = 0;
     }
 
-    historyRegisterMask = mask(globalHistoryBits);
-    choiceHistoryMask = choicePredictorSize - 1;
-    globalHistoryMask = globalPredictorSize - 1;
-
-    choiceThreshold = (ULL(1) << (choiceCtrBits - 1)) - 1;
-    takenThreshold = (ULL(1) << (globalCtrBits - 1)) - 1;
-    notTakenThreshold = (ULL(1) << (globalCtrBits - 1)) - 1;
+    SPHT.resize(numLinSPHT);
+    for(int i = 0; i < numLinSPHT; ++i){
+        SPHT[i].resize(numColSPHT);
+        for(int j=0; j < numColSPHT; ++j){
+            SPHT[i][j].setBits(bitsSPHT);
+        }
+    }
 }
 
 /*
@@ -78,25 +69,16 @@ PAsBP::PAsBP(const PAsBPParams *params)
  * chooses the taken array and the taken array predicts taken.
  */
 void
-PAsBP::uncondBranch(ThreadID tid, Addr pc, void * &bpHistory)
+PAsBP::uncondBranch(ThreadID tid, Addr pc)
 {
-    BPHistory *history = new BPHistory;
-    history->globalHistoryReg = globalHistoryReg[tid];
-    history->takenUsed = true;
-    history->takenPred = true;
-    history->notTakenPred = true;
-    history->finalPred = true;
-    bpHistory = static_cast<void*>(history);
-    updateGlobalHistReg(tid, true);
-}
+    unsigned index = (branchAddr & tamPBHT);
+    unsigned linhaSPHT = (PBHT[indexPBHT] & numLinSPHT);
+    unsigned colunaSPHT = (branchAddr & numColPBHT);
 
-void
-PAsBP::squash(ThreadID tid, void *bpHistory)
-{
-    BPHistory *history = static_cast<BPHistory*>(bpHistory);
-    globalHistoryReg[tid] = history->globalHistoryReg;
+    PBHT[index] = (PBHT[index] << 1);
 
-    delete history;
+    PBHT[index] |=  1;
+    SPHT[linhaSPHT][colunaSPHT].increment();
 }
 
 /*
@@ -109,48 +91,16 @@ PAsBP::squash(ThreadID tid, void *bpHistory)
  * direction predictors for the final branch prediction.
  */
 bool
-PAsBP::lookup(ThreadID tid, Addr branchAddr, void * &bpHistory)
+PAsBP::lookup(ThreadID tid, Addr branchAddr)
 {
-    unsigned choiceHistoryIdx = ((branchAddr >> instShiftAmt)
-                                & choiceHistoryMask);
-    unsigned globalHistoryIdx = (((branchAddr >> instShiftAmt)
-                                ^ globalHistoryReg[tid])
-                                & globalHistoryMask);
-
-    assert(choiceHistoryIdx < choicePredictorSize);
-    assert(globalHistoryIdx < globalPredictorSize);
-
-    bool choicePrediction = choiceCounters[choiceHistoryIdx].read()
-                            > choiceThreshold;
-    bool takenGHBPrediction = takenCounters[globalHistoryIdx].read()
-                              > takenThreshold;
-    bool notTakenGHBPrediction = notTakenCounters[globalHistoryIdx].read()
-                                 > notTakenThreshold;
-    bool finalPrediction;
-
-    BPHistory *history = new BPHistory;
-    history->globalHistoryReg = globalHistoryReg[tid];
-    history->takenUsed = choicePrediction;
-    history->takenPred = takenGHBPrediction;
-    history->notTakenPred = notTakenGHBPrediction;
-
-    if (choicePrediction) {
-        finalPrediction = takenGHBPrediction;
-    } else {
-        finalPrediction = notTakenGHBPrediction;
-    }
-
-    history->finalPred = finalPrediction;
-    bpHistory = static_cast<void*>(history);
-    updateGlobalHistReg(tid, finalPrediction);
+    
+    unsigned indexPBHT = (branchAddr & tamPBHT);
+    unsigned linhaSPHT = (PBHT[indexPBHT] & numLinSPHT);
+    unsigned colunaSPHT = (branchAddr & numColPBHT);
+    
+    bool finalPrediction = (SPHT[linhaSPHT][colunaSPHT] > 1);
 
     return finalPrediction;
-}
-
-void
-PAsBP::btbUpdate(ThreadID tid, Addr branchAddr, void * &bpHistory)
-{
-    globalHistoryReg[tid] &= (historyRegisterMask & ~ULL(1));
 }
 
 /* Only the selected direction predictor will be updated with the final
@@ -160,87 +110,26 @@ PAsBP::btbUpdate(ThreadID tid, Addr branchAddr, void * &bpHistory)
  * the direction predictors makes a correct final prediction.
  */
 void
-PAsBP::update(ThreadID tid, Addr branchAddr, bool taken, void *bpHistory,
-                 bool squashed)
+PAsBP::update(ThreadID tid, Addr branchAddr, bool taken, bool squashed)
 {
-    assert(bpHistory);
-
-    BPHistory *history = static_cast<BPHistory*>(bpHistory);
-
     // We do not update the counters speculatively on a squash.
     // We just restore the global history register.
     if (squashed) {
-        globalHistoryReg[tid] = (history->globalHistoryReg << 1) | taken;
         return;
     }
 
-    unsigned choiceHistoryIdx = ((branchAddr >> instShiftAmt)
-                                & choiceHistoryMask);
-    unsigned globalHistoryIdx = (((branchAddr >> instShiftAmt)
-                                ^ history->globalHistoryReg)
-                                & globalHistoryMask);
+    unsigned index = (branchAddr & tamPBHT);
+    unsigned linhaSPHT = (PBHT[indexPBHT] & numLinSPHT);
+    unsigned colunaSPHT = (branchAddr & numColPBHT);
 
-    assert(choiceHistoryIdx < choicePredictorSize);
-    assert(globalHistoryIdx < globalPredictorSize);
+    PBHT[index] = (PBHT[index] << 1);
 
-    if (history->takenUsed) {
-        // if the taken array's prediction was used, update it
-        if (taken) {
-            takenCounters[globalHistoryIdx].increment();
-        } else {
-            takenCounters[globalHistoryIdx].decrement();
-        }
-    } else {
-        // if the not-taken array's prediction was used, update it
-        if (taken) {
-            notTakenCounters[globalHistoryIdx].increment();
-        } else {
-            notTakenCounters[globalHistoryIdx].decrement();
-        }
+    if (taken){
+        PBHT[index] |=  1;
+        SPHT[linhaSPHT][colunaSPHT].increment();
+    } else{
+        SPHT[linhaSPHT][colunaSPHT].decrement();
     }
-
-    if (history->finalPred == taken) {
-       /* If the final prediction matches the actual branch's
-        * outcome and the choice predictor matches the final
-        * outcome, we update the choice predictor, otherwise it
-        * is not updated. While the designers of the bi-mode
-        * predictor don't explicity say why this is done, one
-        * can infer that it is to preserve the choice predictor's
-        * bias with respect to the branch being predicted; afterall,
-        * the whole point of the bi-mode predictor is to identify the
-        * atypical case when a branch deviates from its bias.
-        */
-        if (history->finalPred == history->takenUsed) {
-            if (taken) {
-                choiceCounters[choiceHistoryIdx].increment();
-            } else {
-                choiceCounters[choiceHistoryIdx].decrement();
-            }
-        }
-    } else {
-        // always update the choice predictor on an incorrect prediction
-        if (taken) {
-            choiceCounters[choiceHistoryIdx].increment();
-        } else {
-            choiceCounters[choiceHistoryIdx].decrement();
-        }
-    }
-
-    delete history;
-}
-
-unsigned
-PAsBP::getGHR(ThreadID tid, void *bp_history) const
-{
-    return static_cast<BPHistory*>(bp_history)->globalHistoryReg;
-}
-
-void
-PAsBP::updateGlobalHistReg(ThreadID tid, bool taken)
-{
-    globalHistoryReg[tid] = taken ? (globalHistoryReg[tid] << 1) | 1 :
-                               (globalHistoryReg[tid] << 1);
-    globalHistoryReg[tid] &= historyRegisterMask;
 }
 
 PAsBP*

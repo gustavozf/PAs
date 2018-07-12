@@ -66,6 +66,12 @@ class PAsBP(BranchPredictor):
     cxx_class = 'PAsBP'
     cxx_header = "cpu/pred/PAs.hh"
 
+    a = Param.Unsigned(2, 'Bits para indexar o end da BHT')
+    m = Param.Unsigned(2, 'Bits para indexar a coluna da SPHT (SET)')
+    k = Param.Unsigned(2, 'Bits para indexar a linha da SPHT (Historico)')
+    tamHistBHT = Param.Unsigned(2, 'Tamanho do historio/bits da BHT')
+    tamPred = Param.Unsigned(2, 'Bits do Sat Counter da SPHT')
+
 class TournamentBP(BranchPredictor):
     type = 'TournamentBP'
     cxx_class = 'TournamentBP'
