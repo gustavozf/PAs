@@ -44,7 +44,7 @@ PAsBP::PAsBP(const PAsBPParams *params)
       m(params->m),
       bitsSPHT(params->tamPred),
       bitsPBHT(params->tamHistBHT)
-
+    {
     tamPBHT = pow(2,a);
     numColSPHT = pow(2, m);
     numLinSPHT = pow(2, k);
@@ -71,9 +71,9 @@ PAsBP::PAsBP(const PAsBPParams *params)
 void
 PAsBP::uncondBranch(ThreadID tid, Addr pc, void * &bpHistory)
 {
-    unsigned index = (branchAddr & tamPBHT);
-    unsigned linhaSPHT = (PBHT[indexPBHT] & numLinSPHT);
-    unsigned colunaSPHT = (branchAddr & numColPBHT);
+    unsigned index = (pc & tamPBHT);
+    unsigned linhaSPHT = (PBHT[index] & numLinSPHT);
+    unsigned colunaSPHT = (pc & numColSPHT);
 
     PBHT[index] = (PBHT[index] << 1);
 
@@ -96,9 +96,9 @@ PAsBP::lookup(ThreadID tid, Addr branchAddr, void * &bpHistory)
 {
     unsigned indexPBHT = (branchAddr & tamPBHT);
     unsigned linhaSPHT = (PBHT[indexPBHT] & numLinSPHT);
-    unsigned colunaSPHT = (branchAddr & numColPBHT);
+    unsigned colunaSPHT = (branchAddr & numColSPHT);
     
-    bool finalPrediction = (SPHT[linhaSPHT][colunaSPHT] > 1);
+    bool finalPrediction = (SPHT[linhaSPHT][colunaSPHT].read() > 1);
 
     return finalPrediction;
 }
@@ -122,8 +122,8 @@ PAsBP::update(ThreadID tid, Addr branchAddr, bool taken, void *bpHistory,
     }
 
     unsigned index = (branchAddr & tamPBHT);
-    unsigned linhaSPHT = (PBHT[indexPBHT] & numLinSPHT);
-    unsigned colunaSPHT = (branchAddr & numColPBHT);
+    unsigned linhaSPHT = (PBHT[index] & numLinSPHT);
+    unsigned colunaSPHT = (branchAddr & numColSPHT);
 
     PBHT[index] = (PBHT[index] << 1);
 

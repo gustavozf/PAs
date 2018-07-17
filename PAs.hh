@@ -79,7 +79,7 @@ class PAsBP : public BPredUnit
     // Nivel 2 / 2^k e 2^m
     // escolher linha = 'k' bits do historico de salto armazenado em PBHT
     // escolher coluna = 'm' bits menos significativos de um msm addr 'B'
-    std::vector<std::vector<SatCounter> > SPHT
+    std::vector<std::vector<SatCounter> > SPHT;
     
     unsigned k; //
     unsigned a; //
