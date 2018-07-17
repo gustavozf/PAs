@@ -69,7 +69,7 @@ PAsBP::PAsBP(const PAsBPParams *params)
  * chooses the taken array and the taken array predicts taken.
  */
 void
-PAsBP::uncondBranch(ThreadID tid, Addr pc)
+PAsBP::uncondBranch(ThreadID tid, Addr pc, void * &bpHistory)
 {
     unsigned index = (branchAddr & tamPBHT);
     unsigned linhaSPHT = (PBHT[indexPBHT] & numLinSPHT);
@@ -81,19 +81,19 @@ PAsBP::uncondBranch(ThreadID tid, Addr pc)
     SPHT[linhaSPHT][colunaSPHT].increment();
 }
 
-/*
- * Here we lookup the actual branch prediction. We use the PC to
- * identify the bias of a particular branch, which is based on the
- * prediction in the choice array. A hash of the global history
- * register and a branch's PC is used to index into both the taken
- * and not-taken predictors, which both present a prediction. The
- * choice array's prediction is used to select between the two
- * direction predictors for the final branch prediction.
- */
-bool
-PAsBP::lookup(ThreadID tid, Addr branchAddr)
+// Apaga o historico
+void
+PAsBP::squash(ThreadID tid, void *bpHistory)
 {
-    
+    //BPHistory *history = static_cast<BPHistory*>(bpHistory);
+    //globalHistoryReg[tid] = history->globalHistoryReg;
+
+    //delete history;
+}
+
+bool
+PAsBP::lookup(ThreadID tid, Addr branchAddr, void * &bpHistory)
+{
     unsigned indexPBHT = (branchAddr & tamPBHT);
     unsigned linhaSPHT = (PBHT[indexPBHT] & numLinSPHT);
     unsigned colunaSPHT = (branchAddr & numColPBHT);
@@ -103,18 +103,21 @@ PAsBP::lookup(ThreadID tid, Addr branchAddr)
     return finalPrediction;
 }
 
-/* Only the selected direction predictor will be updated with the final
- * outcome; the status of the unselected one will not be altered. The choice
- * predictor is always updated with the branch outcome, except when the
- * choice is opposite to the branch outcome but the selected counter of
- * the direction predictors makes a correct final prediction.
- */
+// So no primeiro nivel
 void
-PAsBP::update(ThreadID tid, Addr branchAddr, bool taken, bool squashed)
+PAsBP::btbUpdate(ThreadID tid, Addr branchAddr, void * &bpHistory)
+{
+    
+}
+
+void
+PAsBP::update(ThreadID tid, Addr branchAddr, bool taken, void *bpHistory,
+                 bool squashed)
 {
     // We do not update the counters speculatively on a squash.
     // We just restore the global history register.
     if (squashed) {
+        //globalHistoryReg[tid] = (history->globalHistoryReg << 1) | taken;
         return;
     }
 
