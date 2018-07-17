@@ -71,6 +71,7 @@ class PAsBP : public BPredUnit
         std::vector<std::vector<SatCounter> > HistSPHT;
     };
 
+    unsigned thread;
     // Nivel 1 / TAM = 2^a
     // Idexa usando "a" bits menos significativos de um addr 'B'
     // Guarda o historico de saltos, que sao varios bits
