@@ -65,10 +65,6 @@ PAsBP::PAsBP(const PAsBPParams *params)
             SPHT[i][j].setBits(bitsSPHT);
         }
     }
-    thread.resize(threadID);
-    for(int i = 0; i <tamPBHT){
-        thread[i].resize(tamPBHT);
-    }
 }
 
 /*
