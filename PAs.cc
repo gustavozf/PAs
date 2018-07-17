@@ -39,7 +39,7 @@
 
 PAsBP::PAsBP(const PAsBPParams *params)
     : BPredUnit(params),
-      threadID(params->numThreads),
+      thread(params->numThreads),
       k(params->k),
       a(params->a),
       m(params->m),
@@ -50,8 +50,8 @@ PAsBP::PAsBP(const PAsBPParams *params)
     numColSPHT = pow(2, m);
     numLinSPHT = pow(2, k);
 
-    PBHT.resize(threadID)
-    for(int j = 0; j < threadID; j++){
+    PBHT.resize(thread);
+    for(int j = 0; j < PBHT.size(); j++){
         PBHT[j].resize(tamPBHT);
         for(int i=0; i < tamPBHT; ++i){
             PBHT[j][i] = 0;
@@ -89,10 +89,10 @@ PAsBP::uncondBranch(ThreadID tid, Addr pc, void * &bpHistory)
 void
 PAsBP::squash(ThreadID tid, void *bpHistory)
 {
-    BPHistory *history = static_cast<BPHistory*>(bpHistory);
-    PBHT[tid] = history->HistPBHT;
+//    BPHistory *history = static_cast<BPHistory*>(bpHistory);
+//    PBHT[tid] = history->HistPBHT;
 
-    delete history;
+//    delete history;
 }
 
 bool
@@ -111,7 +111,7 @@ PAsBP::lookup(ThreadID tid, Addr branchAddr, void * &bpHistory)
 void
 PAsBP::btbUpdate(ThreadID tid, Addr branchAddr, void * &bpHistory)
 {
-    PBHT[tid][(branchAddr & tamPBHT)] &= ((branchAddr & tamPBHT) & ~ULL(1));
+    //PBHT[tid][(branchAddr & tamPBHT)] &= ((branchAddr & tamPBHT) & ~ULL(1));
 }
 
 void
@@ -121,16 +121,16 @@ PAsBP::update(ThreadID tid, Addr branchAddr, bool taken, void *bpHistory,
     // We do not update the counters speculatively on a squash.
     // We just restore the global history register.
     
-    BPHistory *history = static_cast<BPHistory*>(bpHistory);
+
+    //BPHistory *history = static_cast<BPHistory*>(bpHistory);
     if (squashed) {
-        PBHT[tid] = (history->HistPBHT << 1) | taken;
+    //    PBHT[tid] = (history->HistPBHT[index] << 1) | taken;
         return;
     }
 
     unsigned index = (branchAddr & tamPBHT);
     unsigned linhaSPHT = (PBHT[tid][index] & numLinSPHT);
     unsigned colunaSPHT = (branchAddr & numColSPHT);
-
 
     PBHT[tid][index] = (PBHT[tid][index] << 1);
 

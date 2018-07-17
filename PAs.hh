@@ -76,7 +76,7 @@ class PAsBP : public BPredUnit
     // Idexa usando "a" bits menos significativos de um addr 'B'
     // Guarda o historico de saltos, que sao varios bits
     //std::vector<std::vector<unsigned> > PBHT;
-    std::vector<unsigned> PBHT;
+    std::vector<std::vector<unsigned> > PBHT;
     // Nivel 2 / 2^k e 2^m
     // escolher linha = 'k' bits do historico de salto armazenado em PBHT
     // escolher coluna = 'm' bits menos significativos de um msm addr 'B'
