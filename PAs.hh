@@ -67,7 +67,8 @@ class PAsBP : public BPredUnit
   private:
 
     struct BPHistory {
-        std::vector<std::vector<unsigned> > HistPBHT;
+        unsigned HistPBHT;
+        unsigned index;
         std::vector<std::vector<SatCounter> > HistSPHT;
     };
 
@@ -91,6 +92,7 @@ class PAsBP : public BPredUnit
     unsigned tamPBHT; // 2^a
     unsigned numColSPHT; // 2^m
     unsigned numLinSPHT; // 2^k
+    unsigned maskHist;
 };
 
 #endif // __CPU_PRED_BI_MODE_PRED_HH__

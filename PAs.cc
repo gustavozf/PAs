@@ -46,25 +46,28 @@ PAsBP::PAsBP(const PAsBPParams *params)
       bitsSPHT(params->tamPred),
       bitsPBHT(params->tamHistBHT)
     {
+    printf("\nINICIANDO PARAMETROS\n");
     tamPBHT = pow(2,a);
     numColSPHT = pow(2, m);
     numLinSPHT = pow(2, k);
+    maskHist = mask(bitsPBHT);
 
     PBHT.resize(thread);
-    for(int j = 0; j < PBHT.size(); j++){
+    for(int j = 0; j < thread; j++){
         PBHT[j].resize(tamPBHT);
-        for(int i=0; i < tamPBHT; ++i){
+        for(int i=0; i < tamPBHT; i++){
             PBHT[j][i] = 0;
         }
     }
 
     SPHT.resize(numLinSPHT);
-    for(int i = 0; i < numLinSPHT; ++i){
+    for(int i = 0; i < numLinSPHT; i++){
         SPHT[i].resize(numColSPHT);
-        for(int j=0; j < numColSPHT; ++j){
+        for(int j=0; j < numColSPHT; j++){
             SPHT[i][j].setBits(bitsSPHT);
         }
     }
+    printf("\nPARAMETROS CRIADOS\n");
 }
 
 /*
@@ -75,35 +78,56 @@ PAsBP::PAsBP(const PAsBPParams *params)
 void
 PAsBP::uncondBranch(ThreadID tid, Addr pc, void * &bpHistory)
 {
-    unsigned index = (pc & tamPBHT);
-    unsigned linhaSPHT = (PBHT[tid][index] & numLinSPHT);
-    unsigned colunaSPHT = (pc & numColSPHT);
+    printf("Entrou uncondBranch\n");
+
+    unsigned powA = pow(2, a) -1;
+    unsigned powK = pow(2, k)-1;
+    unsigned powM = pow(2, m)-1;
+
+    unsigned index = (pc & powA);
+    unsigned linhaSPHT = (PBHT[tid][index] & powK);
+    unsigned colunaSPHT = (pc & powM);
 
     PBHT[tid][index] = (PBHT[tid][index] << 1);
 
     PBHT[tid][index] |=  1;
     SPHT[linhaSPHT][colunaSPHT].increment();
+    printf("Saiu uncondBranch\n\n");
 }
 
 // Apaga o historico
 void
 PAsBP::squash(ThreadID tid, void *bpHistory)
 {
-//    BPHistory *history = static_cast<BPHistory*>(bpHistory);
-//    PBHT[tid] = history->HistPBHT;
+    printf("Entrou squash\n");
+    BPHistory *history = static_cast<BPHistory*>(bpHistory);
+    PBHT[tid][history->index] = history->HistPBHT;
 
-//    delete history;
+    delete history;
+
+    printf("Saiu squash\n\n");
 }
 
 bool
 PAsBP::lookup(ThreadID tid, Addr branchAddr, void * &bpHistory)
 {
-    unsigned indexPBHT = (branchAddr & tamPBHT);
-    unsigned linhaSPHT = (PBHT[tid][indexPBHT] & numLinSPHT);
-    unsigned colunaSPHT = (branchAddr & numColSPHT);
+    printf("Entrou lookup\n");
+
+    unsigned powA = pow(2, a) -1;
+    unsigned powK = pow(2, k)-1;
+    unsigned powM = pow(2, m)-1;
+
+    BPHistory *history = new BPHistory;
+    unsigned indexPBHT = (branchAddr & powA);
+    unsigned linhaSPHT = (PBHT[tid][indexPBHT] & powK);
+    unsigned colunaSPHT = (branchAddr & powM);
     
     bool finalPrediction = (SPHT[linhaSPHT][colunaSPHT].read() > 1);
+    history->index = indexPBHT;
+    history->HistPBHT = PBHT[tid][indexPBHT];
 
+    bpHistory = static_cast<void *>(history);
+    printf("Saiu lookup\n\n");
     return finalPrediction;
 }
 
@@ -111,7 +135,13 @@ PAsBP::lookup(ThreadID tid, Addr branchAddr, void * &bpHistory)
 void
 PAsBP::btbUpdate(ThreadID tid, Addr branchAddr, void * &bpHistory)
 {
-    //PBHT[tid][(branchAddr & tamPBHT)] &= ((branchAddr & tamPBHT) & ~ULL(1));
+    printf("Entrou btbUpdate\n");
+    unsigned powA = pow(2, a) -1;
+    //BPHistory *history = static_cast<BPHistory*>(bpHistory);
+    PBHT[tid][(branchAddr & powA)] &= (maskHist & ~ULL(1)); //transorma o ultimo bit em 0
+
+    //delete history;
+    printf("Saiu btbUpdate\n\n");
 }
 
 void
@@ -121,25 +151,40 @@ PAsBP::update(ThreadID tid, Addr branchAddr, bool taken, void *bpHistory,
     // We do not update the counters speculatively on a squash.
     // We just restore the global history register.
     
+    printf("Entrou update\n");
 
-    //BPHistory *history = static_cast<BPHistory*>(bpHistory);
+    unsigned powA = pow(2, a) -1;
+    unsigned powK = pow(2, k)-1;
+    unsigned powM = pow(2, m)-1;
+
+    unsigned index = (branchAddr & powA);
+    unsigned linhaSPHT = (PBHT[tid][index] & powK);
+    unsigned colunaSPHT = (branchAddr & powM);
+
+    BPHistory *history = static_cast<BPHistory*>(bpHistory);
     if (squashed) {
-    //    PBHT[tid] = (history->HistPBHT[index] << 1) | taken;
+        PBHT[tid][index] = (history->HistPBHT << 1) | taken;
+        printf("Saiu update (squashed)\n\n");
         return;
     }
 
-    unsigned index = (branchAddr & tamPBHT);
-    unsigned linhaSPHT = (PBHT[tid][index] & numLinSPHT);
-    unsigned colunaSPHT = (branchAddr & numColSPHT);
-
+    
     PBHT[tid][index] = (PBHT[tid][index] << 1);
+    printf("Leu da PBHT\n");
 
     if (taken){
+        printf("taken!\n");
         PBHT[tid][index] |=  1;
+        printf("Leu PBHT!\n");
         SPHT[linhaSPHT][colunaSPHT].increment();
+        printf("Incrementou SPHT\n");
     } else{
+        printf("Not taken!\n");
         SPHT[linhaSPHT][colunaSPHT].decrement();
+        printf("decrementou SPHT\n");
     }
+
+    printf("Saiu update\n\n");
 }
 
 PAsBP*
